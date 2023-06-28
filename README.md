@@ -4,7 +4,9 @@ Notebooks that I use as references in my projects.
 These notebooks are made with the assistance of GPT-4 (The June 22nd Model with Wolfram Alpha and Scholar AI Plug-Ins) and then checked over and reformatted by me. 
 
 **CAUTION**: **These Cheat Sheets are not perfect and I'm afraid some parts of it may even be wrong.** This is NOT intended to be used to learn the relevant concepts for the first time. 
+
 **USE CASE**: I would use these as a reference for code, and to refresh some of the concepts that you already know. Regardless of their flaws, they have been an invaluable tool and reference for some of my projects and I thought I would share them here.
+
 
 An example of some of the GPT-4 prompts I used to create these notebooks are:
 ```
