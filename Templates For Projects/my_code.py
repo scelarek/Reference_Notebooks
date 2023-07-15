@@ -10,6 +10,7 @@ import time
 import re
 import math
 import os
+from IPython.display import display, Markdown
 
 # Viz libraries
 import matplotlib as mpl
@@ -30,16 +31,21 @@ from tempfile import mkdtemp
 from sklearn.pipeline import Pipeline
 from sklearn.preprocessing import StandardScaler
 from sklearn.decomposition import PCA, KernelPCA
-from sklearn.linear_model import LogisticRegression
-from sklearn.svm import SVC
-from sklearn.tree import DecisionTreeClassifier
-from sklearn.neighbors import KNeighborsClassifier
 from sklearn.model_selection import GridSearchCV
 from sklearn.feature_selection import SelectPercentile, f_regression, f_classif
 from statsmodels.stats.stattools import durbin_watson
 from sklearn.metrics import confusion_matrix, ConfusionMatrixDisplay, accuracy_score, precision_score, recall_score, f1_score
+
+# ML Models
+from sklearn.svm import SVC
+from sklearn.tree import DecisionTreeClassifier
+from sklearn.neighbors import KNeighborsClassifier
+from sklearn.linear_model import LogisticRegression
+from sklearn.cluster import KMeans
 # from fbprophet import Prophet
 # from fbprophet.plot import plot_plotly, add_changepoints_to_plot
+
+# ML NLP libraries
 # from sklearn.feature_extraction.text import CountVectorizer, TfidfVectorizer
 # from scipy.sparse import hstack
 # import nltk
@@ -51,10 +57,8 @@ from geopy.geocoders import Nominatim
 
 # # Optional Libraries
 # from collections import defaultdict
-# from datetime import timedelta  
 # from dateutil.relativedelta import relativedelta
-# import functools
-from IPython.display import display, Markdown
+
 
 # Initialize styling params
 plt.rcParams['figure.figsize'] = (8.0, 6.0) #setting figure size
@@ -214,6 +218,176 @@ def non_numeric_columns_assessment(df):
     # Return a DataFrame with the statistics
     return pd.DataFrame(index=['Non-Numeric Columns', '# Uniques', 'Most Common', 'Least Common'], 
                         data=[non_numeric_columns.columns.tolist(), uniques_non, most_common_non, least_common_non]).T
+
+def prediction_evaluations(best_model, X_test, y_test, average_method='weighted'):
+    """
+    Evaluate the prediction performance of a given model on a test set.
+
+    Parameters:
+    best_model (Model): Trained model for making predictions
+    X_test (DataFrame): Features from the test set
+    y_test (Series/DataFrame): Target variable from the test set
+
+    Returns:
+    None
+    """    
+    # Make predictions on the test set
+    y_pred = best_model.predict(X_test)
+
+    # Calculate the accuracy
+    accuracy = accuracy_score(y_test, y_pred)
+
+    # Calculate the precision
+    precision = precision_score(y_test, y_pred, average=average_method)
+
+    # Calculate the recall (sensitivity)
+    recall = recall_score(y_test, y_pred, average=average_method)
+
+    # Calculate the F1 score
+    f1 = f1_score(y_test, y_pred, average=average_method)
+
+    # Print the metrics
+    print("Accuracy:", accuracy)
+    print("Precision:", precision)
+    print("Recall (Sensitivity):", recall)
+    print("F1 Score:", f1)
+
+
+
+def confusion_matrix_plot(best_model, X_test, y_test, class_labels):
+    """
+    Plot a confusion matrix for a given model and test data.
+
+    Parameters:
+    best_model (Model): Trained model for making predictions
+    X_test (DataFrame): Features from the test set
+    y_test (Series/DataFrame): Target variable from the test set
+    class_labels (list): List of class labels
+
+    Returns:
+    None
+    """
+    # Generate confusion matrix
+    ConfusionMatrixDisplay.from_estimator(best_model, X_test, y_test, 
+                                    display_labels=class_labels, 
+                                    normalize='all', cmap='Blues', values_format='.2%')
+
+    # Add title and axis labels
+    plt.title('Confusion Matrix')
+    plt.xlabel('Predicted Label')
+    plt.ylabel('True Label')
+
+    # Fix Grid
+    plt.grid(False)
+
+    # Show the plot
+    plt.show()
+
+
+
+def plot_average_score_of_hyperparameters(grid_outcomes, pipe_variable, variable_plot_name='Hyperparameter', score_plot_name = 'Score'):
+    """
+    Plot the mean test and train scores with error bars for different hyperparameters.
+
+    Parameters:
+    grid_outcomes (DataFrame): Grid search outcomes containing scores for different hyperparameters
+    pipe_variable (str): Pipeline variable name
+    variable_plot_name (str, optional): Label for the x-axis of the plot. Default is 'Hyperparameter'.
+    score_plot_name (str, optional): Label for the y-axis of the plot. Default is 'Score'.
+
+    Returns:
+    None
+    """
+    grouped_grid = grid_outcomes.groupby(pipe_variable)
+
+    # Set the figure size
+    plt.figure(figsize=(10, 6))
+
+    # Plot the mean test score with error bars
+    plt.errorbar(
+        x=grouped_grid['mean_test_score'].mean().index,
+        y=grouped_grid['mean_test_score'].mean(),
+        yerr=grouped_grid['std_test_score'].mean(),
+        marker='o',
+        linestyle='-',
+        color='blue',
+        label='Validation Scores'
+    )
+
+    plt.errorbar(
+        x=grouped_grid['mean_train_score'].mean().index,
+        y=grouped_grid['mean_train_score'].mean(),
+        yerr=grouped_grid['std_train_score'].mean(),
+        marker='o',
+        linestyle='-',
+        color='red',
+        label='Training Scores'
+    )
+
+    # Set the x-axis label
+    plt.xlabel(f'{variable_plot_name}')
+    plt.axvline(grid_outcomes.loc[grid_outcomes.mean_test_score.argmax(), pipe_variable], color='green', linestyle='--', label='Best Model')
+    
+    # Set the y-axis label
+    plt.ylabel(f'Mean {score_plot_name}')
+
+    # Set the plot title
+    plt.title(f'Grid Search: {score_plot_name} vs {variable_plot_name}')
+    plt.legend()
+
+
+
+def plot_average_time_of_hyperparameters(grid_outcomes, pipe_variable, variable_plot_name='Hyperparameter'):
+    """
+    Plot the mean fit and score times with error bars for different hyperparameters.
+
+    Parameters:
+    grid_outcomes (DataFrame): Grid search outcomes containing times for different hyperparameters
+    pipe_variable (str): Pipeline variable name
+    variable_plot_name (str, optional): Label for the x-axis of the plot. Default is 'Hyperparameter'.
+
+    Returns:
+    None
+    """
+    grouped_grid = grid_outcomes.groupby(pipe_variable)
+    
+    # Set the figure size
+    plt.figure(figsize=(10, 6))
+
+    # Plot the mean test score with error bars
+    plt.errorbar(
+        x=grouped_grid['mean_fit_time'].mean().index,
+        y=grouped_grid['mean_fit_time'].mean(),
+        yerr=grouped_grid['std_fit_time'].mean(),
+        marker='o',
+        linestyle='-',
+        color='blue',
+        label='Fit Times'
+    )
+
+    plt.errorbar(
+        x=grouped_grid['mean_score_time'].mean().index,
+        y=grouped_grid['mean_score_time'].mean(),
+        yerr=grouped_grid['std_score_time'].mean(),
+        marker='o',
+        linestyle='-',
+        color='red',
+        label='Score Times'
+    )
+
+    # Set the x-axis label
+    plt.xlabel(f'{variable_plot_name}')
+    plt.axvline(grid_outcomes.loc[grouped_grid.mean_fit_time.mean().argmin(), pipe_variable], color='green', linestyle='--', label='Best Fit Time')
+    plt.axvline(grid_outcomes.loc[grouped_grid.mean_score_time.mean().argmin(), pipe_variable], color='orange', linestyle='--', label='Best Score Time')
+
+    # Set the y-axis label
+    plt.ylabel(f'Mean Time (in seconds)')
+
+    # Set the plot title
+    plt.title(f'Grid Search: Time vs {variable_plot_name}')
+    plt.legend()
+
+
 
 # setup for tokenizer
 # stemmer = nltk.stem.PorterStemmer()
