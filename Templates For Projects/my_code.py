@@ -61,16 +61,16 @@ from geopy.geocoders import Nominatim
 
 
 # Initialize styling params
-plt.rcParams['figure.figsize'] = (8.0, 6.0) #setting figure size
 plt.rcParams["xtick.direction"] = "in"
 plt.rcParams["ytick.direction"] = "in"
 plt.rcParams["font.size"] = 11.0
 plt.rcParams["figure.figsize"] = (9, 6)
+plt.style.use('fivethirtyeight')
 
-# sns.set_style("whitegrid")
-sns.set_style("darkgrid")
-sns.set_context("notebook")
+# sns.set_style("darkgrid")
+sns.set_style("whitegrid")
 sns.set_palette("viridis")
+sns.set_context("notebook")
 
 pd.set_option("display.max_columns", 50)
 pd.set_option('display.max_colwidth', 1000)
