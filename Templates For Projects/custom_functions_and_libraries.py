@@ -4,7 +4,6 @@ import numpy as np
 import datetime as dt
 from functools import reduce
 import sys
-import my_code as mc
 import string
 import time
 import re
@@ -37,10 +36,26 @@ from statsmodels.stats.stattools import durbin_watson
 from sklearn.metrics import confusion_matrix, ConfusionMatrixDisplay, accuracy_score, precision_score, recall_score, f1_score
 
 # ML Models
-from sklearn.svm import SVC
-from sklearn.tree import DecisionTreeClassifier
-from sklearn.neighbors import KNeighborsClassifier
+# Basic Classifier Models
 from sklearn.linear_model import LogisticRegression
+from sklearn.tree import DecisionTreeClassifier
+from sklearn.svm import SVC
+from sklearn.neighbors import KNeighborsClassifier
+
+# Basic Regression Models
+from sklearn.linear_model import LinearRegression
+from sklearn.tree import DecisionTreeRegressor
+from sklearn.svm import SVR
+from sklearn.neighbors import KNeighborsRegressor
+
+# Advanced Classifier Models
+from sklearn.ensemble import RandomForestClassifier, AdaBoostClassifier, GradientBoostingClassifier
+from xgboost import XGBClassifier
+
+# Advanced Regression Models
+from sklearn.ensemble import RandomForestRegressor, AdaBoostRegressor, GradientBoostingRegressor
+from xgboost import XGBRegressor
+
 from sklearn.cluster import KMeans
 # from fbprophet import Prophet
 # from fbprophet.plot import plot_plotly, add_changepoints_to_plot
@@ -75,7 +90,7 @@ sns.set_context("notebook")
 pd.set_option("display.max_columns", 50)
 pd.set_option('display.max_colwidth', 1000)
 pd.plotting.register_matplotlib_converters()
-os.environ["PYTHONHASHSEED"] = "123"
+# os.environ["PYTHONHASHSEED"] = "42"
 
 
 
