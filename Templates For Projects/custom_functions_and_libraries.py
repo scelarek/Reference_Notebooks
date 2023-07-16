@@ -22,37 +22,46 @@ import plotly.graph_objects as go
 
 
 # ML libraries
-from scipy import stats
+import scipy.stats as stats
 import statsmodels.api as sm
 import sklearn as sk
-from sklearn.model_selection import train_test_split
 from tempfile import mkdtemp
 from sklearn.pipeline import Pipeline
 from sklearn.preprocessing import StandardScaler, MinMaxScaler, RobustScaler
 from sklearn.decomposition import PCA, KernelPCA
-from sklearn.model_selection import GridSearchCV
+from sklearn.experimental import enable_halving_search_cv    # noqa
+from sklearn.model_selection import GridSearchCV, train_test_split, HalvingGridSearchCV, RandomizedSearchCV, HalvingRandomSearchCV
 from sklearn.feature_selection import SelectPercentile, f_regression, f_classif
 from statsmodels.stats.stattools import durbin_watson
-from sklearn.metrics import classification_report, confusion_matrix, ConfusionMatrixDisplay, accuracy_score, precision_score, recall_score, f1_score
+from sklearn.metrics import classification_report, ConfusionMatrixDisplay, accuracy_score, precision_score, recall_score, f1_score
+from sklearn import metrics
 
 # ML Models
 # Basic Classifier/Regression Models
-from sklearn.linear_model import LogisticRegression, LinearRegression
+from sklearn.linear_model import LogisticRegression, LinearRegression, Ridge, Lasso, ElasticNet, SGDClassifier, SGDRegressor
 from sklearn.tree import DecisionTreeClassifier, DecisionTreeRegressor
 from sklearn.svm import SVC, SVR
 from sklearn.neighbors import KNeighborsClassifier, KNeighborsRegressor
 
-# Advanced Classifier Models
-from sklearn.ensemble import RandomForestClassifier, AdaBoostClassifier, GradientBoostingClassifier
-from xgboost import XGBClassifier
+# Ensemble Models
+from sklearn.ensemble import RandomForestClassifier, ExtraTreesClassifier, ExtraTreesRegressor, GradientBoostingClassifier, RandomForestRegressor, GradientBoostingRegressor
+from sklearn.naive_bayes import GaussianNB
+from xgboost import XGBClassifier, XGBRegressor
+from lightgbm import LGBMClassifier, LGBMRegressor
+from catboost import CatBoostClassifier, CatBoostRegressor
 
-# Advanced Regression Models
-from sklearn.ensemble import RandomForestRegressor, AdaBoostRegressor, GradientBoostingRegressor
-from xgboost import XGBRegressor
+# Clustering Models
+from sklearn.cluster import KMeans, AgglomerativeClustering, DBSCAN
+from sklearn.mixture import GaussianMixture
 
-from sklearn.cluster import KMeans
-# from fbprophet import Prophet
-# from fbprophet.plot import plot_plotly, add_changepoints_to_plot
+# Time Series Models
+from statsmodels.tsa.arima.model import ARIMA
+from statsmodels.tsa.statespace.sarimax import SARIMAX
+from prophet import Prophet
+# from prophet import plot_plotly, add_changepoints_to_plot
+
+# from keras.models import Sequential
+# from keras.layers import LSTM
 
 # ML NLP libraries
 # from sklearn.feature_extraction.text import CountVectorizer, TfidfVectorizer
@@ -85,6 +94,12 @@ pd.set_option("display.max_columns", 50)
 pd.set_option('display.max_colwidth', 1000)
 pd.plotting.register_matplotlib_converters()
 # os.environ["PYTHONHASHSEED"] = "42"
+os.environ['KMP_DUPLICATE_LIB_OK']='True'
+
+
+
+
+
 
 def get_coordinates(address):
     """
@@ -157,6 +172,9 @@ def add_latitude_and_longitude(df, mappings, key_column, lat_column, long_column
     return df
 
 
+
+
+
 def one_hot_encode(df, col, drop_col=False, drop_first=False):
     """
     One-hot encode a column of a dataframe.
@@ -176,6 +194,11 @@ def one_hot_encode(df, col, drop_col=False, drop_first=False):
     if drop_col:
         df = df.drop(columns=col)  # Drop the originalcolumn if requested
     return df
+
+
+
+
+
 
 
 def numeric_columns_assessment(df):
@@ -229,7 +252,87 @@ def non_numeric_columns_assessment(df):
     return pd.DataFrame(index=['Non-Numeric Columns', '# Uniques', 'Most Common', 'Least Common'], 
                         data=[non_numeric_columns.columns.tolist(), uniques_non, most_common_non, least_common_non]).T
 
-def prediction_evaluations(best_model, X_test, y_test):
+
+
+
+def evaluate_linear_model(model, X_test, y_test, plot=True):
+    """
+    Evaluate the performance of a linear model.
+
+    Parameters:
+    model (Model): Trained model for making predictions
+    X_test (DataFrame): Features from the test set
+    y_test (Series/DataFrame): Target variable from the test set
+
+    Returns:
+    scores (Series): Series containing performance scores
+    residuals (Series): Residuals of the model
+    """    
+    # Make predictions on the test set
+    y_pred = model.predict(X_test)
+    
+    # Calculate metrics
+    r2 = metrics.r2_score(y_test, y_pred)
+    adj_r2 = 1 - (1-r2)*(len(y_test)-1)/(len(y_test)-X_test.shape[1]-1)
+    mae = metrics.mean_absolute_error(y_test, y_pred)
+    mse = metrics.mean_squared_error(y_test, y_pred)
+    rmse = np.sqrt(mse)
+    explained_variance = metrics.explained_variance_score(y_test, y_pred)
+    
+    # Put metrics into a pandas series
+    scores = pd.Series({
+        'R^2': r2,
+        'Adjusted R^2': adj_r2,
+        'MAE': mae,
+        'MSE': mse,
+        'RMSE': rmse,
+        'Explained Variance': explained_variance,
+    })
+    
+    if plot:
+        display(scores.to_frame('Scores').style.background_gradient(cmap='coolwarm'))
+
+    return scores
+
+
+def plot_regression_residuals(model, X_test, y_test):
+    """
+    Plot residuals of a linear model.
+
+    Parameters:
+    residuals (Series/DataFrame): Residuals of the model
+
+    Returns:
+    None
+    """  
+    y_pred = model.predict(X_test)
+    residuals = y_test - y_pred
+
+    # Create Q-Q plot
+    plt.figure(figsize=(12, 6))
+    sm.qqplot(residuals, line='s')
+    plt.title('Q-Q Plot')
+    plt.show()
+
+    # Create histogram of residuals
+    sns.histplot(residuals, kde=True)
+    plt.title('Histogram of Residuals')
+    plt.show()
+
+    # Create scatter plot of residuals
+    plt.scatter(y_pred, residuals)
+    plt.xlabel('Fitted values')
+    plt.ylabel('Residuals')
+    plt.title('Residuals vs Fitted Values')
+    plt.show()
+
+    # Display plot
+    plt.tight_layout()
+
+
+
+
+def evaluate_classifier_model(best_model, X_test, y_test, confusion_matrix=True):
     """
     Evaluate the prediction performance of a given model on a test set.
 
@@ -259,35 +362,98 @@ def prediction_evaluations(best_model, X_test, y_test):
     # Display styled DataFrame
     display(report_df.style.background_gradient(cmap='Blues', subset=['precision', 'recall','f1-score']))
     
+    if confusion_matrix:
+        """
+        Plot a confusion matrix for a given model and test data.
 
-def confusion_matrix_plot(best_model, X_test, y_test, class_labels):
-    """
-    Plot a confusion matrix for a given model and test data.
+        Parameters:
+        best_model (Model): Trained model for making predictions
+        X_test (DataFrame): Features from the test set
+        y_test (Series/DataFrame): Target variable from the test set
+        class_labels (list): List of class labels
 
-    Parameters:
-    best_model (Model): Trained model for making predictions
-    X_test (DataFrame): Features from the test set
-    y_test (Series/DataFrame): Target variable from the test set
-    class_labels (list): List of class labels
+        Returns:
+        None
+        """
+        # Generate confusion matrix
+        ConfusionMatrixDisplay.from_estimator(best_model, X_test, y_test, 
+                                        display_labels=range(len(y_test.unique())), 
+                                        normalize='all', cmap='Blues', values_format='.2%')
 
-    Returns:
-    None
-    """
-    # Generate confusion matrix
-    ConfusionMatrixDisplay.from_estimator(best_model, X_test, y_test, 
-                                    display_labels=class_labels, 
-                                    normalize='all', cmap='Blues', values_format='.2%')
+        # Add title and axis labels
+        plt.title('Confusion Matrix')
+        plt.xlabel('Predicted Label')
+        plt.ylabel('True Label')
 
-    # Add title and axis labels
-    plt.title('Confusion Matrix')
-    plt.xlabel('Predicted Label')
-    plt.ylabel('True Label')
+        # Fix Grid
+        plt.grid(False)
 
-    # Fix Grid
-    plt.grid(False)
+        # Show the plot
+        plt.show()
+        
+    return report_df
 
-    # Show the plot
-    plt.show()
+
+
+def plot_classifier_residuals(model, X_test, y_test, aggregate=False):
+    # Compute predicted probabilities
+    y_pred_proba = model.predict_proba(X_test)
+
+    residuals = []
+
+    # compute residuals for each class
+    for i in range(y_pred_proba.shape[1]):
+        # Treat each class as binary outcome
+        y_test_binary = (y_test == i).astype(int)
+        
+        # Compute residuals
+        residuals_i = y_test_binary - y_pred_proba[:, i]
+        residuals.append(residuals_i)
+        
+    residuals = np.array(residuals)
+
+    if aggregate:
+        # Aggregate residuals across all classes
+        residuals_agg = residuals.sum(axis=0)
+
+        # Plot aggregated residuals
+        plt.scatter(y_pred_proba.sum(axis=1), residuals_agg, alpha=0.1)
+        plt.xlabel('Fitted values (aggregated)')
+        plt.ylabel('Residuals (aggregated)')
+        plt.title('Residuals vs Fitted values (aggregated)')
+        plt.show()
+
+        # Plot aggregated residuals distribution
+        plt.hist(residuals_agg, alpha=0.5)
+        plt.xlabel('Residuals (aggregated)')
+        plt.title('Residuals Distribution (aggregated)')
+        plt.show()
+
+        # Perform Durbin-Watson test
+        dw = durbin_watson(residuals_agg)
+        print('Durbin-Watson statistic (aggregated):', dw)
+
+    else:
+        # Plot residuals for each class
+        for i in range(residuals.shape[0]):
+            plt.scatter(y_pred_proba[:, i], residuals[i, :], alpha=0.1)
+            plt.xlabel('Fitted values for class '+str(i))
+            plt.ylabel('Residuals')
+            plt.title('Residuals vs Fitted values for class '+str(i))
+            plt.show()
+
+            # Plot residuals distribution
+            plt.hist(residuals[i, :], alpha=0.5)
+            plt.xlabel('Residuals for class '+str(i))
+            plt.title('Residuals Distribution for class '+str(i))
+            plt.show()
+
+            # Perform Durbin-Watson test
+            dw = durbin_watson(residuals[i, :])
+            print('Durbin-Watson statistic for class '+str(i)+':', dw)
+
+
+
 
 
 # Define a function to plot hyperparameters
@@ -303,9 +469,9 @@ def plot_average_score_of_hyperparameters(grid_outcomes, first_hyperparameter, v
 
     # Plot the mean test scores with error bars
     plt.errorbar(
-        x=grouped_grid['mean_test_score'].mean().index,
-        y=grouped_grid['mean_test_score'].mean(),
-        yerr=grouped_grid['std_test_score'].mean(),
+        x=sorted(grouped_grid['mean_test_score'].mean().index),
+        y=grouped_grid['mean_test_score'].mean().sort_index(),
+        yerr=grouped_grid['std_test_score'].mean().sort_index(),
         marker='o',
         linestyle='-',
         color='red',
@@ -314,9 +480,9 @@ def plot_average_score_of_hyperparameters(grid_outcomes, first_hyperparameter, v
 
     # Plot the mean train scores with error bars
     plt.errorbar(
-        x=grouped_grid['mean_train_score'].mean().index,
-        y=grouped_grid['mean_train_score'].mean(),
-        yerr=grouped_grid['std_train_score'].mean(),
+        x=sorted(grouped_grid['mean_train_score'].mean().index),
+        y=grouped_grid['mean_train_score'].mean().sort_index(),
+        yerr=grouped_grid['std_train_score'].mean().sort_index(),
         marker='o',
         linestyle='-',
         color='blue',
@@ -327,22 +493,22 @@ def plot_average_score_of_hyperparameters(grid_outcomes, first_hyperparameter, v
     if second_hyperparameter:
         # Plot the mean test scores with Seaborn lineplot, with line style varying by the second hyperparameter
         sns.lineplot(
-            x=grid_outcomes[first_hyperparameter],
-            y=grid_outcomes['mean_test_score'],
-            style=grid_outcomes[second_hyperparameter],
-            color='orange',
+            x=grid_outcomes[first_hyperparameter].sort_index(),
+            y=grid_outcomes['mean_test_score'].sort_index(),
+            style=grid_outcomes[second_hyperparameter].sort_index(),
+            color='red',
             legend=False,
-            alpha=0.6
+            alpha=0.3
         )
         
         # Plot the mean train scores with Seaborn lineplot, with line style varying by the second hyperparameter
         sns.lineplot(
-            x=grid_outcomes[first_hyperparameter],
-            y=grid_outcomes['mean_train_score'],
-            style=grid_outcomes[second_hyperparameter],
-            color='purple',
+            x=grid_outcomes[first_hyperparameter].sort_index(),
+            y=grid_outcomes['mean_train_score'].sort_index(),
+            style=grid_outcomes[second_hyperparameter].sort_index(),
+            color='blue',
             legend=True,
-            alpha=0.6
+            alpha=0.3
         )
 
     # Label the x-axis
@@ -366,7 +532,7 @@ def plot_average_score_of_hyperparameters(grid_outcomes, first_hyperparameter, v
     
 
 # Define a function to plot hyperparameters
-def plot_average_time_of_hyperparameters(grid_outcomes, first_hyperparameter, variable_plot_name='Hyperparameter', second_hyperparameter=None, score_plot_name='Score'):
+def plot_average_time_of_hyperparameters(grid_outcomes, first_hyperparameter, variable_plot_name='Hyperparameter', second_hyperparameter=None):
     # Group the grid outcomes by the first hyperparameter
     grouped_grid = grid_outcomes.groupby(first_hyperparameter)
     
@@ -379,9 +545,9 @@ def plot_average_time_of_hyperparameters(grid_outcomes, first_hyperparameter, va
 
     # Plot the mean test scores with error bars
     plt.errorbar(
-        x=grouped_grid['mean_fit_time'].mean().index,
-        y=grouped_grid['mean_fit_time'].mean(),
-        yerr=grouped_grid['std_fit_time'].mean(),
+        x=sorted(grouped_grid['mean_fit_time'].mean().index),
+        y=grouped_grid['mean_fit_time'].mean().sort_index(),
+        yerr=grouped_grid['std_fit_time'].mean().sort_index(),
         marker='o',
         linestyle='-',
         color='red',
@@ -390,9 +556,9 @@ def plot_average_time_of_hyperparameters(grid_outcomes, first_hyperparameter, va
 
     # Plot the mean train scores with error bars
     plt.errorbar(
-        x=grouped_grid['mean_score_time'].mean().index,
-        y=grouped_grid['mean_score_time'].mean(),
-        yerr=grouped_grid['std_score_time'].mean(),
+        x=sorted(grouped_grid['mean_score_time'].mean().index),
+        y=grouped_grid['mean_score_time'].mean().sort_index(),
+        yerr=grouped_grid['std_score_time'].mean().sort_index(),
         marker='o',
         linestyle='-',
         color='blue',
@@ -403,22 +569,22 @@ def plot_average_time_of_hyperparameters(grid_outcomes, first_hyperparameter, va
     if second_hyperparameter:
         # Plot the mean test scores with Seaborn lineplot, with line style varying by the second hyperparameter
         sns.lineplot(
-            x=grid_outcomes[first_hyperparameter],
-            y=grid_outcomes['mean_fit_time'],
-            style=grid_outcomes[second_hyperparameter],
-            color='orange',
+            x=grid_outcomes[first_hyperparameter].sort_index(),
+            y=grid_outcomes['mean_fit_time'].sort_index(),
+            style=grid_outcomes[second_hyperparameter].sort_index(),
+            color='red',
             legend=False,
-            alpha=0.6
+            alpha=0.3
         )
         
         # Plot the mean train scores with Seaborn lineplot, with line style varying by the second hyperparameter
         sns.lineplot(
-            x=grid_outcomes[first_hyperparameter],
-            y=grid_outcomes['mean_score_time'],
-            style=grid_outcomes[second_hyperparameter],
-            color='purple',
+            x=grid_outcomes[first_hyperparameter].sort_index(),
+            y=grid_outcomes['mean_score_time'].sort_index(),
+            style=grid_outcomes[second_hyperparameter].sort_index(),
+            color='blue',
             legend=True,
-            alpha=0.6
+            alpha=0.3
         )
 
     # Label the x-axis
@@ -429,16 +595,19 @@ def plot_average_time_of_hyperparameters(grid_outcomes, first_hyperparameter, va
     plt.axvline(mean_score_winner, color='blue', linestyle=':', linewidth=3, label='Best Score Time')
 
     # Label the y-axis
-    plt.ylabel(f'Mean {score_plot_name}')
+    plt.ylabel(f'Mean Time (in Seconds)')
 
     # Add a title to the plot
-    plt.title(f'Grid Search: {score_plot_name} vs {variable_plot_name}')
+    plt.title(f'Grid Search: Time (in Seconds) vs {variable_plot_name}')
 
     # If a second hyperparameter is provided, place the legend outside the plot
     if second_hyperparameter:
         plt.legend(bbox_to_anchor=(1.04, 0.5), loc='center left')
     else:
         plt.legend()
+
+
+
 
 
 # setup for tokenizer
