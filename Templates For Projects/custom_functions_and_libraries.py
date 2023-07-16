@@ -28,25 +28,19 @@ import sklearn as sk
 from sklearn.model_selection import train_test_split
 from tempfile import mkdtemp
 from sklearn.pipeline import Pipeline
-from sklearn.preprocessing import StandardScaler
+from sklearn.preprocessing import StandardScaler, MinMaxScaler, RobustScaler
 from sklearn.decomposition import PCA, KernelPCA
 from sklearn.model_selection import GridSearchCV
 from sklearn.feature_selection import SelectPercentile, f_regression, f_classif
 from statsmodels.stats.stattools import durbin_watson
-from sklearn.metrics import confusion_matrix, ConfusionMatrixDisplay, accuracy_score, precision_score, recall_score, f1_score
+from sklearn.metrics import classification_report, confusion_matrix, ConfusionMatrixDisplay, accuracy_score, precision_score, recall_score, f1_score
 
 # ML Models
-# Basic Classifier Models
-from sklearn.linear_model import LogisticRegression
-from sklearn.tree import DecisionTreeClassifier
-from sklearn.svm import SVC
-from sklearn.neighbors import KNeighborsClassifier
-
-# Basic Regression Models
-from sklearn.linear_model import LinearRegression
-from sklearn.tree import DecisionTreeRegressor
-from sklearn.svm import SVR
-from sklearn.neighbors import KNeighborsRegressor
+# Basic Classifier/Regression Models
+from sklearn.linear_model import LogisticRegression, LinearRegression
+from sklearn.tree import DecisionTreeClassifier, DecisionTreeRegressor
+from sklearn.svm import SVC, SVR
+from sklearn.neighbors import KNeighborsClassifier, KNeighborsRegressor
 
 # Advanced Classifier Models
 from sklearn.ensemble import RandomForestClassifier, AdaBoostClassifier, GradientBoostingClassifier
@@ -91,8 +85,6 @@ pd.set_option("display.max_columns", 50)
 pd.set_option('display.max_colwidth', 1000)
 pd.plotting.register_matplotlib_converters()
 # os.environ["PYTHONHASHSEED"] = "42"
-
-
 
 def get_coordinates(address):
     """
@@ -141,6 +133,7 @@ def get_mapping_lat_long(addresses):
             
     return lat_lon_dict
 
+
 def add_latitude_and_longitude(df, mappings, key_column, lat_column, long_column):
     """
     Add latitude and longitude to a dataframe based on an existing column of addresses.
@@ -162,6 +155,7 @@ def add_latitude_and_longitude(df, mappings, key_column, lat_column, long_column
 
     df[long_column] = df[key_column].map(longitudes).combine_first(df[long_column])
     return df
+
 
 def one_hot_encode(df, col, drop_col=False, drop_first=False):
     """
@@ -210,6 +204,7 @@ def numeric_columns_assessment(df):
     return pd.DataFrame(index=['Numeric Columns', 'Mean', 'Median', 'Range', 'STD', 'Skew', 'Dtype'], data=[numeric_columns.columns.tolist(), 
                 numeric_means, numeric_medians, numeric_mins_maxs, numeric_STD, numeric_skew, numeric_dtypes]).T
 
+
 def non_numeric_columns_assessment(df):
     """
     Function to assess non-numeric columns in a DataFrame.
@@ -234,7 +229,7 @@ def non_numeric_columns_assessment(df):
     return pd.DataFrame(index=['Non-Numeric Columns', '# Uniques', 'Most Common', 'Least Common'], 
                         data=[non_numeric_columns.columns.tolist(), uniques_non, most_common_non, least_common_non]).T
 
-def prediction_evaluations(best_model, X_test, y_test, average_method='weighted'):
+def prediction_evaluations(best_model, X_test, y_test):
     """
     Evaluate the prediction performance of a given model on a test set.
 
@@ -248,26 +243,22 @@ def prediction_evaluations(best_model, X_test, y_test, average_method='weighted'
     """    
     # Make predictions on the test set
     y_pred = best_model.predict(X_test)
+    
+    # Calculate accuracy
+    accuracy = str(np.round(accuracy_score(y_test, y_pred)*100, 1))
 
-    # Calculate the accuracy
-    accuracy = accuracy_score(y_test, y_pred)
+    # Display accuracy with Markdown
+    display(Markdown(f"### Accuracy: \n The model's accuracy is **{accuracy}%**"))
+    
+    # Generate classification report
+    report = classification_report(y_test, y_pred, output_dict=True)
 
-    # Calculate the precision
-    precision = precision_score(y_test, y_pred, average=average_method)
+    # Convert to DataFrame
+    report_df = pd.DataFrame(report).drop(['accuracy'], axis=1).T
 
-    # Calculate the recall (sensitivity)
-    recall = recall_score(y_test, y_pred, average=average_method)
-
-    # Calculate the F1 score
-    f1 = f1_score(y_test, y_pred, average=average_method)
-
-    # Print the metrics
-    print("Accuracy:", accuracy)
-    print("Precision:", precision)
-    print("Recall (Sensitivity):", recall)
-    print("F1 Score:", f1)
-
-
+    # Display styled DataFrame
+    display(report_df.style.background_gradient(cmap='Blues', subset=['precision', 'recall','f1-score']))
+    
 
 def confusion_matrix_plot(best_model, X_test, y_test, class_labels):
     """
@@ -299,109 +290,155 @@ def confusion_matrix_plot(best_model, X_test, y_test, class_labels):
     plt.show()
 
 
-
-def plot_average_score_of_hyperparameters(grid_outcomes, pipe_variable, variable_plot_name='Hyperparameter', score_plot_name = 'Score'):
-    """
-    Plot the mean test and train scores with error bars for different hyperparameters.
-
-    Parameters:
-    grid_outcomes (DataFrame): Grid search outcomes containing scores for different hyperparameters
-    pipe_variable (str): Pipeline variable name
-    variable_plot_name (str, optional): Label for the x-axis of the plot. Default is 'Hyperparameter'.
-    score_plot_name (str, optional): Label for the y-axis of the plot. Default is 'Score'.
-
-    Returns:
-    None
-    """
-    grouped_grid = grid_outcomes.groupby(pipe_variable)
-
-    # Set the figure size
+# Define a function to plot hyperparameters
+def plot_average_score_of_hyperparameters(grid_outcomes, first_hyperparameter, variable_plot_name='Hyperparameter', second_hyperparameter=None, score_plot_name='Score'):
+    # Group the grid outcomes by the first hyperparameter
+    grouped_grid = grid_outcomes.groupby(first_hyperparameter)
+    
+    # Get the hyperparameter value of the model with the highest test score
+    winner = grid_outcomes.loc[grid_outcomes.mean_test_score.argmax(), first_hyperparameter]
+    
+    # Create a new figure
     plt.figure(figsize=(10, 6))
 
-    # Plot the mean test score with error bars
+    # Plot the mean test scores with error bars
     plt.errorbar(
         x=grouped_grid['mean_test_score'].mean().index,
         y=grouped_grid['mean_test_score'].mean(),
         yerr=grouped_grid['std_test_score'].mean(),
         marker='o',
         linestyle='-',
-        color='blue',
+        color='red',
         label='Validation Scores'
     )
 
+    # Plot the mean train scores with error bars
     plt.errorbar(
         x=grouped_grid['mean_train_score'].mean().index,
         y=grouped_grid['mean_train_score'].mean(),
         yerr=grouped_grid['std_train_score'].mean(),
         marker='o',
         linestyle='-',
-        color='red',
+        color='blue',
         label='Training Scores'
     )
 
-    # Set the x-axis label
+    # If a second hyperparameter is provided
+    if second_hyperparameter:
+        # Plot the mean test scores with Seaborn lineplot, with line style varying by the second hyperparameter
+        sns.lineplot(
+            x=grid_outcomes[first_hyperparameter],
+            y=grid_outcomes['mean_test_score'],
+            style=grid_outcomes[second_hyperparameter],
+            color='orange',
+            legend=False,
+            alpha=0.6
+        )
+        
+        # Plot the mean train scores with Seaborn lineplot, with line style varying by the second hyperparameter
+        sns.lineplot(
+            x=grid_outcomes[first_hyperparameter],
+            y=grid_outcomes['mean_train_score'],
+            style=grid_outcomes[second_hyperparameter],
+            color='purple',
+            legend=True,
+            alpha=0.6
+        )
+
+    # Label the x-axis
     plt.xlabel(f'{variable_plot_name}')
-    plt.axvline(grid_outcomes.loc[grid_outcomes.mean_test_score.argmax(), pipe_variable], color='green', linestyle='--', label='Best Model')
     
-    # Set the y-axis label
+    # Draw a vertical line at the best model
+    plt.axvline(winner, color='green', linestyle=':', linewidth=3, label='Best Model')
+
+    # Label the y-axis
     plt.ylabel(f'Mean {score_plot_name}')
 
-    # Set the plot title
+    # Add a title to the plot
     plt.title(f'Grid Search: {score_plot_name} vs {variable_plot_name}')
-    plt.legend()
 
-
-
-def plot_average_time_of_hyperparameters(grid_outcomes, pipe_variable, variable_plot_name='Hyperparameter'):
-    """
-    Plot the mean fit and score times with error bars for different hyperparameters.
-
-    Parameters:
-    grid_outcomes (DataFrame): Grid search outcomes containing times for different hyperparameters
-    pipe_variable (str): Pipeline variable name
-    variable_plot_name (str, optional): Label for the x-axis of the plot. Default is 'Hyperparameter'.
-
-    Returns:
-    None
-    """
-    grouped_grid = grid_outcomes.groupby(pipe_variable)
+    # If a second hyperparameter is provided, place the legend outside the plot
+    if second_hyperparameter:
+        plt.legend(bbox_to_anchor=(1.04, 0.5), loc='center left')
+    else:
+        plt.legend()
     
-    # Set the figure size
+    
+
+# Define a function to plot hyperparameters
+def plot_average_time_of_hyperparameters(grid_outcomes, first_hyperparameter, variable_plot_name='Hyperparameter', second_hyperparameter=None, score_plot_name='Score'):
+    # Group the grid outcomes by the first hyperparameter
+    grouped_grid = grid_outcomes.groupby(first_hyperparameter)
+    
+    # Get the hyperparameter value of the model with the highest test score
+    mean_fit_winner = grid_outcomes.loc[grouped_grid.mean_fit_time.mean().argmin(), first_hyperparameter]
+    mean_score_winner = grid_outcomes.loc[grouped_grid.mean_score_time.mean().argmin(), first_hyperparameter]
+
+    # Create a new figure
     plt.figure(figsize=(10, 6))
 
-    # Plot the mean test score with error bars
+    # Plot the mean test scores with error bars
     plt.errorbar(
         x=grouped_grid['mean_fit_time'].mean().index,
         y=grouped_grid['mean_fit_time'].mean(),
         yerr=grouped_grid['std_fit_time'].mean(),
         marker='o',
         linestyle='-',
-        color='blue',
-        label='Fit Times'
+        color='red',
+        label='mean_fit_time'
     )
 
+    # Plot the mean train scores with error bars
     plt.errorbar(
         x=grouped_grid['mean_score_time'].mean().index,
         y=grouped_grid['mean_score_time'].mean(),
         yerr=grouped_grid['std_score_time'].mean(),
         marker='o',
         linestyle='-',
-        color='red',
-        label='Score Times'
+        color='blue',
+        label='mean_score_time'
     )
 
-    # Set the x-axis label
+    # If a second hyperparameter is provided
+    if second_hyperparameter:
+        # Plot the mean test scores with Seaborn lineplot, with line style varying by the second hyperparameter
+        sns.lineplot(
+            x=grid_outcomes[first_hyperparameter],
+            y=grid_outcomes['mean_fit_time'],
+            style=grid_outcomes[second_hyperparameter],
+            color='orange',
+            legend=False,
+            alpha=0.6
+        )
+        
+        # Plot the mean train scores with Seaborn lineplot, with line style varying by the second hyperparameter
+        sns.lineplot(
+            x=grid_outcomes[first_hyperparameter],
+            y=grid_outcomes['mean_score_time'],
+            style=grid_outcomes[second_hyperparameter],
+            color='purple',
+            legend=True,
+            alpha=0.6
+        )
+
+    # Label the x-axis
     plt.xlabel(f'{variable_plot_name}')
-    plt.axvline(grid_outcomes.loc[grouped_grid.mean_fit_time.mean().argmin(), pipe_variable], color='green', linestyle='--', label='Best Fit Time')
-    plt.axvline(grid_outcomes.loc[grouped_grid.mean_score_time.mean().argmin(), pipe_variable], color='orange', linestyle='--', label='Best Score Time')
+    
+    # Draw a vertical line at the best model
+    plt.axvline(mean_fit_winner, color='red', linestyle=':', linewidth=3, label='Best Fit Time')
+    plt.axvline(mean_score_winner, color='blue', linestyle=':', linewidth=3, label='Best Score Time')
 
-    # Set the y-axis label
-    plt.ylabel(f'Mean Time (in seconds)')
+    # Label the y-axis
+    plt.ylabel(f'Mean {score_plot_name}')
 
-    # Set the plot title
-    plt.title(f'Grid Search: Time vs {variable_plot_name}')
-    plt.legend()
+    # Add a title to the plot
+    plt.title(f'Grid Search: {score_plot_name} vs {variable_plot_name}')
 
+    # If a second hyperparameter is provided, place the legend outside the plot
+    if second_hyperparameter:
+        plt.legend(bbox_to_anchor=(1.04, 0.5), loc='center left')
+    else:
+        plt.legend()
 
 
 # setup for tokenizer
