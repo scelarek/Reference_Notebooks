@@ -36,10 +36,10 @@ from sklearn.pipeline import Pipeline
 from sklearn.preprocessing import StandardScaler, MinMaxScaler, RobustScaler
 from sklearn.decomposition import PCA, KernelPCA
 from sklearn.experimental import enable_halving_search_cv    # noqa
-from sklearn.model_selection import GridSearchCV, train_test_split, HalvingGridSearchCV, RandomizedSearchCV, HalvingRandomSearchCV
+from sklearn.model_selection import GridSearchCV, train_test_split, HalvingGridSearchCV, RandomizedSearchCV
 from sklearn.feature_selection import SelectPercentile, f_regression, f_classif
 from statsmodels.stats.stattools import durbin_watson
-from sklearn.metrics import classification_report, ConfusionMatrixDisplay, accuracy_score, precision_score, recall_score, f1_score
+from sklearn.metrics import classification_report, ConfusionMatrixDisplay, accuracy_score, silhouette_score
 from sklearn import metrics
 
 
@@ -186,7 +186,7 @@ def non_numeric_columns_assessment(df):
 # Hyperparameter Functions and Piping
 
 
-def evaluate_linear_model(model, X_test, y_test, plot=True):
+def evaluate_regression_model(model, X_test, y_test, plot=True):
     """
     Evaluate the performance of a linear model.
 
@@ -385,12 +385,52 @@ def plot_classifier_residuals(model, X_test, y_test, aggregate=False):
 
 
 
+def top_3_model_results(grid_outcomes, grid, show_bars=True):
+    # Sort the DataFrame based on the mean test score and select the top 3
+    top3 = grid_outcomes.sort_values('rank_test_score').head(3)
+
+    # Pivot the DataFrame so the models are the columns and the parameters/scores are the rows
+    top3 = top3.set_index('rank_test_score')
+
+    # Filter the columns based on the regex pattern
+    filtered_columns = top3.filter(regex=r'^param_', axis=1).columns
+
+    # Parameters of the best model
+    results1 = top3.loc[:, filtered_columns].sort_index().to_dict()
+
+
+    # Append the other results to the list
+    results2 = {
+        'score_method': grid.scoring,
+        'train_score_average': top3.loc[: , 'mean_train_score'],
+        'validation_score_average': top3.loc[:, 'mean_test_score'],
+        'n_splits': grid.n_splits_,
+        'mean_fit_time': top3.loc[:, 'mean_fit_time'],
+        'mean_score_time': top3.loc[:, 'mean_score_time']
+    }
+
+    results1.update(results2)
+
+    # Convert the results to a DataFrame
+    top_3_model_results = pd.DataFrame(results1)
+
+    if show_bars:
+        top_3_model_results.plot(kind='bar', y=['train_score_average', 'validation_score_average'], figsize=(10, 6), color=['blue', 'red'])
+
+        # Set the y limits
+        plt.ylim(top_3_model_results.validation_score_average.min() - 0.01, top_3_model_results.train_score_average.max() + 0.01)
+        plt.xlabel('Model', fontsize=14)
+        plt.ylabel('Score', fontsize=14)
+        plt.title('Comparison of Top Three Models on Training and Validation Scores', fontsize=16)
+
+    return top_3_model_results
 
 
 # Define a function to plot hyperparameters
-def plot_average_score_of_hyperparameters(grid_outcomes, first_hyperparameter, variable_plot_name='Hyperparameter', second_hyperparameter=None, score_plot_name='Score'):
+def plot_average_score_of_hyperparameters(grid_outcomes, first_hyperparameter, second_hyperparameter=None, score_plot_name='Score'):
     # Group the grid outcomes by the first hyperparameter
     grouped_grid = grid_outcomes.groupby(first_hyperparameter)
+    variable_plot_name= first_hyperparameter.replace('param_', '').replace('__', ' ').title()
     
     # Get the hyperparameter value of the model with the highest test score
     winner = grid_outcomes.loc[grid_outcomes.mean_test_score.argmax(), first_hyperparameter]
@@ -429,7 +469,8 @@ def plot_average_score_of_hyperparameters(grid_outcomes, first_hyperparameter, v
             style=grid_outcomes[second_hyperparameter].sort_index(),
             color='red',
             legend=False,
-            alpha=0.3
+            alpha=0.3,
+            errorbar=None
         )
         
         # Plot the mean train scores with Seaborn lineplot, with line style varying by the second hyperparameter
@@ -439,12 +480,14 @@ def plot_average_score_of_hyperparameters(grid_outcomes, first_hyperparameter, v
             style=grid_outcomes[second_hyperparameter].sort_index(),
             color='blue',
             legend=True,
-            alpha=0.3
+            alpha=0.3,
+            errorbar=None
         )
 
     # Label the x-axis
     plt.xlabel(f'{variable_plot_name}')
-    
+    plt.xticks(rotation=90)
+
     # Draw a vertical line at the best model
     plt.axvline(winner, color='green', linestyle=':', linewidth=3, label='Best Model')
 
@@ -459,17 +502,18 @@ def plot_average_score_of_hyperparameters(grid_outcomes, first_hyperparameter, v
         plt.legend(bbox_to_anchor=(1.04, 0.5), loc='center left')
     else:
         plt.legend()
-    
+        
 
 
 # Define a function to plot hyperparameters
-def plot_average_time_of_hyperparameters(grid_outcomes, first_hyperparameter, variable_plot_name='Hyperparameter', second_hyperparameter=None):
+def plot_average_time_of_hyperparameters(grid_outcomes, first_hyperparameter, second_hyperparameter=None):
     # Group the grid outcomes by the first hyperparameter
     grouped_grid = grid_outcomes.groupby(first_hyperparameter)
-    
+    variable_plot_name= first_hyperparameter.replace('param_', '').replace('__', ' ').title()
+
     # Get the hyperparameter value of the model with the highest test score
-    mean_fit_winner = grid_outcomes.loc[grouped_grid.mean_fit_time.mean().argmin(), first_hyperparameter]
-    mean_score_winner = grid_outcomes.loc[grouped_grid.mean_score_time.mean().argmin(), first_hyperparameter]
+    mean_fit_winner = grid_outcomes.loc[grid_outcomes.mean_fit_time.mean().argmin(), first_hyperparameter]
+    mean_score_winner = grid_outcomes.loc[grid_outcomes.mean_score_time.mean().argmin(), first_hyperparameter]
 
     # Create a new figure
     plt.figure(figsize=(10, 6))
@@ -482,7 +526,7 @@ def plot_average_time_of_hyperparameters(grid_outcomes, first_hyperparameter, va
         marker='o',
         linestyle='-',
         color='red',
-        label='mean_fit_time'
+        label='mean_fit_time',
     )
 
     # Plot the mean train scores with error bars
@@ -493,7 +537,7 @@ def plot_average_time_of_hyperparameters(grid_outcomes, first_hyperparameter, va
         marker='o',
         linestyle='-',
         color='blue',
-        label='mean_score_time'
+        label='mean_score_time',
     )
 
     # If a second hyperparameter is provided
@@ -505,7 +549,8 @@ def plot_average_time_of_hyperparameters(grid_outcomes, first_hyperparameter, va
             style=grid_outcomes[second_hyperparameter].sort_index(),
             color='red',
             legend=False,
-            alpha=0.3
+            alpha=0.3,
+            errorbar=None
         )
         
         # Plot the mean train scores with Seaborn lineplot, with line style varying by the second hyperparameter
@@ -515,11 +560,13 @@ def plot_average_time_of_hyperparameters(grid_outcomes, first_hyperparameter, va
             style=grid_outcomes[second_hyperparameter].sort_index(),
             color='blue',
             legend=True,
-            alpha=0.3
+            alpha=0.3,
+            errorbar=None
         )
 
     # Label the x-axis
     plt.xlabel(f'{variable_plot_name}')
+    plt.xticks(rotation=90, fontsize=9)
     
     # Draw a vertical line at the best model
     plt.axvline(mean_fit_winner, color='red', linestyle=':', linewidth=3, label='Best Fit Time')
@@ -536,6 +583,7 @@ def plot_average_time_of_hyperparameters(grid_outcomes, first_hyperparameter, va
         plt.legend(bbox_to_anchor=(1.04, 0.5), loc='center left')
     else:
         plt.legend()
+
 
 
 
