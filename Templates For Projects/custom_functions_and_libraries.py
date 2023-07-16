@@ -10,6 +10,9 @@ import re
 import math
 import os
 from IPython.display import display, Markdown
+from summarytools import dfSummary, tabset
+
+
 
 # Viz libraries
 import matplotlib as mpl
@@ -21,8 +24,11 @@ from matplotlib.ticker import ScalarFormatter
 import plotly.graph_objects as go
 
 
+# ----------------------------------------------------------------------------------------------------------------------------
+
 # ML libraries
 import scipy.stats as stats
+import scipy
 import statsmodels.api as sm
 import sklearn as sk
 from tempfile import mkdtemp
@@ -36,6 +42,9 @@ from statsmodels.stats.stattools import durbin_watson
 from sklearn.metrics import classification_report, ConfusionMatrixDisplay, accuracy_score, precision_score, recall_score, f1_score
 from sklearn import metrics
 
+
+# ----------------------------------------------------------------------------------------------------------------------------
+
 # ML Models
 # Basic Classifier/Regression Models
 from sklearn.linear_model import LogisticRegression, LinearRegression, Ridge, Lasso, ElasticNet, SGDClassifier, SGDRegressor
@@ -43,25 +52,36 @@ from sklearn.tree import DecisionTreeClassifier, DecisionTreeRegressor
 from sklearn.svm import SVC, SVR
 from sklearn.neighbors import KNeighborsClassifier, KNeighborsRegressor
 
-# Ensemble Models
+
+# ----------------------------------------------------------------------------------------------------------------------------
+
+# Advanced Ensemble Models
 from sklearn.ensemble import RandomForestClassifier, ExtraTreesClassifier, ExtraTreesRegressor, GradientBoostingClassifier, RandomForestRegressor, GradientBoostingRegressor
 from sklearn.naive_bayes import GaussianNB
 # from xgboost import XGBClassifier, XGBRegressor
 from lightgbm import LGBMClassifier, LGBMRegressor
 from catboost import CatBoostClassifier, CatBoostRegressor
 
+
+# ----------------------------------------------------------------------------------------------------------------------------
+
 # Clustering Models
 from sklearn.cluster import KMeans, AgglomerativeClustering, DBSCAN
 from sklearn.mixture import GaussianMixture
+
+
+# ----------------------------------------------------------------------------------------------------------------------------
 
 # Time Series Models
 from statsmodels.tsa.arima.model import ARIMA
 from statsmodels.tsa.statespace.sarimax import SARIMAX
 from prophet import Prophet
 # from prophet import plot_plotly, add_changepoints_to_plot
-
 # from keras.models import Sequential
 # from keras.layers import LSTM
+
+
+# ----------------------------------------------------------------------------------------------------------------------------
 
 # ML NLP libraries
 # from sklearn.feature_extraction.text import CountVectorizer, TfidfVectorizer
@@ -70,13 +90,21 @@ from prophet import Prophet
 # nltk.download('stopwords')
 # from nltk.corpus import stopwords 
 
+
+# ----------------------------------------------------------------------------------------------------------------------------
+
 # Geo libraries
 from geopy.geocoders import Nominatim
+
+
+# ----------------------------------------------------------------------------------------------------------------------------
+
 
 # # Optional Libraries
 # from collections import defaultdict
 # from dateutil.relativedelta import relativedelta
 
+# ----------------------------------------------------------------------------------------------------------------------------
 
 # Initialize styling params
 plt.rcParams["xtick.direction"] = "in"
@@ -93,112 +121,13 @@ sns.set_context("notebook")
 pd.set_option("display.max_columns", 50)
 pd.set_option('display.max_colwidth', 1000)
 pd.plotting.register_matplotlib_converters()
-# os.environ["PYTHONHASHSEED"] = "42"
+os.environ["PYTHONHASHSEED"] = "42"
 os.environ['KMP_DUPLICATE_LIB_OK']='True'
 
 
 
-
-
-
-def get_coordinates(address):
-    """
-    Given an address, use the geopy library to get the latitude and longitude.
-    
-    Args:
-    address (str): The address to geocode.
-    
-    Returns:
-    tuple: The latitude and longitude, or raises a ValueError if the address was not found.
-    """
-    geolocator = Nominatim(user_agent="my-app")  # Create a Nominatim geolocator with a custom user_agent
-    location = geolocator.geocode(address)  # Try to geocode the address
-    if location:
-        return (location.latitude, location.longitude)
-    else:
-        print("Error: Address not found")
-        return False
-        
-
-def get_mapping_lat_long(addresses):
-    """
-    Given a list of addresses, get the latitude and longitude for each address.
-    
-    Args:
-    addresses (list): The list of addresses to geocode.
-    
-    Returns:
-    dict: A dictionary mapping addresses to (latitude, longitude) tuples.
-    """
-    # Get the coordinates for each address
-    coordinates_list = list(map(get_coordinates, addresses))
-    lat_lon_dict = dict(zip(addresses, coordinates_list))  # Create a dictionary mapping addresses to coordinates
-    
-    # Print the results
-    for address, coordinates in lat_lon_dict.items():
-        if coordinates:
-            latitude, longitude = coordinates
-            print(f"Address: {address}")
-            print(f"Latitude: {latitude}")
-            print(f"Longitude: {longitude}")
-            print()
-        else:
-            print(f"Address not found or coordinates not available: {address}")
-            print()
-            
-    return lat_lon_dict
-
-
-def add_latitude_and_longitude(df, mappings, key_column, lat_column, long_column):
-    """
-    Add latitude and longitude to a dataframe based on an existing column of addresses.
-    
-    Args:
-    df (DataFrame): The dataframe to add latitude and longitude to.
-    mappings (dict): A dictionary mapping addresses to (latitude, longitude) tuples.
-    key_column (str): The column of the dataframe that contains the addresses.
-    lat_column (str): The name of the new latitude column.
-    long_column (str): The name of the new longitude column.
-    """
-    # Create dictionaries mapping addresses to latitudes and longitudes
-    latitudes = {k: v[0] for k, v in mappings.items() if v}
-
-    longitudes = {k: v[1] for k, v in mappings.items() if v}
-
-    # Map the latitudes and longitudes to the dataframe
-    df[lat_column] = df[key_column].map(latitudes).combine_first(df[lat_column])
-
-    df[long_column] = df[key_column].map(longitudes).combine_first(df[long_column])
-    return df
-
-
-
-
-
-def one_hot_encode(df, col, drop_col=False, drop_first=False):
-    """
-    One-hot encode a column of a dataframe.
-    
-    Args:
-    df (DataFrame): The dataframe to encode.
-    col (str): The column to encode.
-    drop_col (bool): Whether to drop the original column.
-    drop_first (bool): Whether to drop the first level of the encoded data.
-    
-    Returns:
-    DataFrame: The dataframe with the encoded column.
-    """
-    # Create the one-hot encoded dataframe
-    dummies = pd.get_dummies(df[col], prefix=col, drop_first=drop_first).astype(int)
-    df = pd.concat([df, dummies], axis=1)
-    if drop_col:
-        df = df.drop(columns=col)  # Drop the originalcolumn if requested
-    return df
-
-
-
-
-
+# ----------------------------------------------------------------------------------------------------------------------------
+# Assessment Functions
 
 
 def numeric_columns_assessment(df):
@@ -253,6 +182,8 @@ def non_numeric_columns_assessment(df):
                         data=[non_numeric_columns.columns.tolist(), uniques_non, most_common_non, least_common_non]).T
 
 
+# ----------------------------------------------------------------------------------------------------------------------------
+# Hyperparameter Functions and Piping
 
 
 def evaluate_linear_model(model, X_test, y_test, plot=True):
@@ -529,7 +460,7 @@ def plot_average_score_of_hyperparameters(grid_outcomes, first_hyperparameter, v
     else:
         plt.legend()
     
-    
+
 
 # Define a function to plot hyperparameters
 def plot_average_time_of_hyperparameters(grid_outcomes, first_hyperparameter, variable_plot_name='Hyperparameter', second_hyperparameter=None):
@@ -608,6 +539,8 @@ def plot_average_time_of_hyperparameters(grid_outcomes, first_hyperparameter, va
 
 
 
+# ----------------------------------------------------------------------------------------------------------------------------
+# NLP Functions
 
 
 # setup for tokenizer
@@ -676,12 +609,90 @@ def plot_average_time_of_hyperparameters(grid_outcomes, first_hyperparameter, va
 
 
 
+
+# ----------------------------------------------------------------------------------------------------------------------------
+# Geolocator Functions
+
+
+
+# def get_coordinates(address):
+#     """
+#     Given an address, use the geopy library to get the latitude and longitude.
+    
+#     Args:
+#     address (str): The address to geocode.
+    
+#     Returns:
+#     tuple: The latitude and longitude, or raises a ValueError if the address was not found.
+#     """
+#     geolocator = Nominatim(user_agent="my-app")  # Create a Nominatim geolocator with a custom user_agent
+#     location = geolocator.geocode(address)  # Try to geocode the address
+#     if location:
+#         return (location.latitude, location.longitude)
+#     else:
+#         print("Error: Address not found")
+#         return False
+        
+
+# def get_mapping_lat_long(addresses):
+#     """
+#     Given a list of addresses, get the latitude and longitude for each address.
+    
+#     Args:
+#     addresses (list): The list of addresses to geocode.
+    
+#     Returns:
+#     dict: A dictionary mapping addresses to (latitude, longitude) tuples.
+#     """
+#     # Get the coordinates for each address
+#     coordinates_list = list(map(get_coordinates, addresses))
+#     lat_lon_dict = dict(zip(addresses, coordinates_list))  # Create a dictionary mapping addresses to coordinates
+    
+#     # Print the results
+#     for address, coordinates in lat_lon_dict.items():
+#         if coordinates:
+#             latitude, longitude = coordinates
+#             print(f"Address: {address}")
+#             print(f"Latitude: {latitude}")
+#             print(f"Longitude: {longitude}")
+#             print()
+#         else:
+#             print(f"Address not found or coordinates not available: {address}")
+#             print()
+            
+#     return lat_lon_dict
+
+
+# def add_latitude_and_longitude(df, mappings, key_column, lat_column, long_column):
+#     """
+#     Add latitude and longitude to a dataframe based on an existing column of addresses.
+    
+#     Args:
+#     df (DataFrame): The dataframe to add latitude and longitude to.
+#     mappings (dict): A dictionary mapping addresses to (latitude, longitude) tuples.
+#     key_column (str): The column of the dataframe that contains the addresses.
+#     lat_column (str): The name of the new latitude column.
+#     long_column (str): The name of the new longitude column.
+#     """
+#     # Create dictionaries mapping addresses to latitudes and longitudes
+#     latitudes = {k: v[0] for k, v in mappings.items() if v}
+
+#     longitudes = {k: v[1] for k, v in mappings.items() if v}
+
+#     # Map the latitudes and longitudes to the dataframe
+#     df[lat_column] = df[key_column].map(latitudes).combine_first(df[lat_column])
+
+#     df[long_column] = df[key_column].map(longitudes).combine_first(df[long_column])
+#     return df
+
+
+
 print("Versions used in this notebook:")
 print(f"Python version: {sys.version}")
 print(f"Pandas version: {pd.__version__}")
 print(f"Numpy version: {np.__version__}")
 print(f"Seaborn version: {sns.__version__}")
 print(f"Matplotlib version: {mpl.__version__}")
-# print(f"Scipy version: {scipy.__version__}")
-# print(f"Statsmodels version: {sm.__version__}")
+print(f"Scipy version: {scipy.__version__}")
+print(f"Statsmodels version: {sm.__version__}")
 print(f"SKLearn version: {sk.__version__}")
