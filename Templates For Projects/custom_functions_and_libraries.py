@@ -46,7 +46,7 @@ from sklearn.neighbors import KNeighborsClassifier, KNeighborsRegressor
 # Ensemble Models
 from sklearn.ensemble import RandomForestClassifier, ExtraTreesClassifier, ExtraTreesRegressor, GradientBoostingClassifier, RandomForestRegressor, GradientBoostingRegressor
 from sklearn.naive_bayes import GaussianNB
-from xgboost import XGBClassifier, XGBRegressor
+# from xgboost import XGBClassifier, XGBRegressor
 from lightgbm import LGBMClassifier, LGBMRegressor
 from catboost import CatBoostClassifier, CatBoostRegressor
 
