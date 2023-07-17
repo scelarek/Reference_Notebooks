@@ -22,13 +22,14 @@ import plotly.express as px
 import matplotlib.cm as cm
 from matplotlib.ticker import ScalarFormatter
 import plotly.graph_objects as go
+from mlxtend.plotting import plot_decision_regions
 
 
 # ----------------------------------------------------------------------------------------------------------------------------
 
 # ML libraries
 import scipy.stats as stats
-import scipy
+import scipy as scipy
 import statsmodels.api as sm
 import sklearn as sk
 from tempfile import mkdtemp
