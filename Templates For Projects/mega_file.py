@@ -24,6 +24,11 @@ import plotly.express as px
 import matplotlib.cm as cm
 from matplotlib.ticker import ScalarFormatter
 import plotly.graph_objects as go
+from statsmodels.graphics.tsaplots import month_plot
+import plotly.graph_objects as go
+from plotly.subplots import make_subplots
+import statsmodels.tsa.seasonal as tsa
+from statsmodels.graphics.tsaplots import plot_acf, plot_pacf
 
 
 # ----------------------------------------------------------------------------------------------------------------------------
@@ -46,33 +51,33 @@ from sklearn.metrics import classification_report, ConfusionMatrixDisplay, accur
 from sklearn import metrics
 from mlxtend.plotting import plot_decision_regions
 
-# ----------------------------------------------------------------------------------------------------------------------------
+# # ----------------------------------------------------------------------------------------------------------------------------
 
-# ML Models
-# Basic Classifier/Regression Models
+# # ML Models
+# # Basic Classifier/Regression Models
 from sklearn.linear_model import LogisticRegression, LinearRegression, Ridge, Lasso, ElasticNet, SGDClassifier, SGDRegressor
 from sklearn.tree import DecisionTreeClassifier, DecisionTreeRegressor
 from sklearn.svm import SVC, SVR
 from sklearn.neighbors import KNeighborsClassifier, KNeighborsRegressor
 
 
-# ----------------------------------------------------------------------------------------------------------------------------
+# # ----------------------------------------------------------------------------------------------------------------------------
 
-# Advanced Ensemble Models
+# # Advanced Ensemble Models
 
 from sklearn.ensemble import RandomForestClassifier, ExtraTreesClassifier, ExtraTreesRegressor, GradientBoostingClassifier, RandomForestRegressor, GradientBoostingRegressor
-from sklearn.naive_bayes import GaussianNB
-# from xgboost import XGBClassifier, XGBRegressor
+# from sklearn.naive_bayes import GaussianNB
+# # from xgboost import XGBClassifier, XGBRegressor
 from lightgbm import LGBMClassifier, LGBMRegressor
 from catboost import CatBoostClassifier, CatBoostRegressor
 
 
-# ----------------------------------------------------------------------------------------------------------------------------
+# # ----------------------------------------------------------------------------------------------------------------------------
 
-# Clustering Models
+# # Clustering Models
 
 from sklearn.cluster import KMeans, AgglomerativeClustering, DBSCAN
-from sklearn.mixture import GaussianMixture
+# from sklearn.mixture import GaussianMixture
 
 
 # # ----------------------------------------------------------------------------------------------------------------------------
@@ -120,10 +125,10 @@ plt.rcParams["xtick.direction"] = "in"
 plt.rcParams["ytick.direction"] = "in"
 plt.rcParams["font.size"] = 11.0
 plt.rcParams["figure.figsize"] = (9, 6)
-plt.style.use('fivethirtyeight')
+# plt.style.use('fivethirtyeight')
 
 # sns.set_style("darkgrid")
-sns.set_style("whitegrid")
+# sns.set_style("whitegrid")
 sns.set_palette("viridis")
 sns.set_context("notebook")
 
@@ -165,6 +170,7 @@ def visualize_all_numeric(train_df):
     plt.suptitle('Distribution of Numerical Columns', fontsize=16)
     plt.tight_layout()
     
+
 
 
 def numeric_columns_assessment(df):
@@ -771,6 +777,176 @@ def plot_average_time_of_hyperparameters(grid_outcomes, first_hyperparameter, se
 #     return df
 
 
+####----------------------------------------------------------------------------------------
+
+def clean_df(df, location_key):
+    """
+    Cleans the input dataframe by filtering based on location key and renaming columns.
+    
+    Parameters:
+    - df: DataFrame to be cleaned.
+    - location_key: String representing the location key to filter by.
+    
+    Returns:
+    - df: Cleaned DataFrame.
+    """
+    
+    # Filter the dataframe based on location key and a specific start date.
+    df = df.query('location_key == @location_key and date >= "2020-02-10"')
+    
+    # Convert column names: lowercase and replace spaces with underscores.
+    df.columns = [i.lower().replace(' ', '_') for i in df.columns]
+
+    # Set 'date' column as the index after converting to datetime format.
+    df = df.set_index('date')
+    df.index = pd.to_datetime(df.index)
+    
+    # Drop the 'location_key' column as it's no longer needed.
+    df = df.drop(columns=['location_key'])
+
+    # Display general information and the first few rows of the DataFrame.
+    df.info()
+    display(df.head())
+
+    return df
+
+def min_max_variance(series):
+    """
+    Computes the variance of the normalized series.
+    
+    Parameters:
+    - series: Series of data.
+    
+    Returns:
+    - float: Variance of normalized series.
+    """
+    
+    # Return 0 if max and min are the same to avoid division by zero.
+    if series.max() == series.min():
+        return 0
+    
+    # Normalize the series.
+    series = (series - series.min()) / (series.max() - series.min())
+    
+    return series.var()
+
+
+def quick_summary(df, length=15):
+    """
+    Display a styled summary of the DataFrame.
+    
+    Parameters:
+    - df: DataFrame to summarize.
+    - length: Number of rows to display. Default is 15.
+    """
+    
+    display(df.agg(['mean', 'min', 'max', min_max_variance])
+            .T
+            .sort_values('min_max_variance').head(length)
+            .style
+            .background_gradient(cmap='coolwarm', subset='min_max_variance', vmin=0, vmax=.1)
+            .format(lambda x: "{:,.4f}".format(x).rstrip('0').rstrip('.') if isinstance(x, (float, int)) else x))
+
+
+def last_first_missing(master_df, long=False):
+    """
+    Create a DataFrame summarizing the first and last non-missing date for each column.
+    
+    Parameters:
+    - master_df: DataFrame to analyze.
+    - long: Boolean to decide if additional statistics like min, max, and mean should be included.
+    
+    Returns:
+    - arranged_df: DataFrame with summary information.
+    """
+    
+    minim = []
+    maxim = []
+    mmvar = []
+    
+    # For each column, determine the first and last non-missing date and compute the min_max_variance.
+    for col in master_df:
+        minim.append(master_df[master_df[col].notna()].index.min())
+        maxim.append(master_df[master_df[col].notna()].index.max())
+        mmvar.append(min_max_variance(master_df[col]))
+
+    # Construct a DataFrame from the collected data.
+    first_last_dates = pd.DataFrame(data={'First_Data_Date': minim, 'Last_Data_Date': maxim, 'percent': 
+                                          (master_df.isna().sum() / len(master_df)).values * 100, 'min_max_variance': mmvar}, index=master_df.columns)
+
+    # Convert the date columns to datetime format.
+    first_last_dates[['First_Data_Date', 'Last_Data_Date']] = first_last_dates[['First_Data_Date', 'Last_Data_Date']].apply(lambda x: pd.to_datetime(x, format='%Y-%m-%d').dt.date)
+    
+    # If the long flag is set, add additional statistics to the DataFrame.
+    if long:
+        first_last_dates['min'] =  master_df.min()
+        first_last_dates['max'] = master_df.max()
+        first_last_dates['mean'] = master_df.mean()
+
+    # Arrange the DataFrame based on the 'percent' column.
+    arranged_df = first_last_dates.sort_values(by='percent', ascending=False)
+    
+    return arranged_df
+
+
+
+def spline_testing(df, col, order=5, method='spline'):
+    mse_errors, mae_errors, mape_errors = [], [], []
+
+    for i in range(1, order+1, 1):
+        
+        candidate = df[col][df[col].notna()]
+
+        spline = df[col].interpolate(method=method, order=i)
+        spline.loc[candidate.index] = np.nan
+
+        y_true = candidate.iloc[1:-1] 
+        y_predicted = spline.interpolate(method=method, order=i).loc[candidate.index].iloc[1:-1]
+        
+        mse_errors.append(mean_squared_error(y_true, y_predicted))
+        mae_errors.append(mean_absolute_error(y_true, y_predicted))
+        mape_errors.append(np.mean(np.abs(np.divide(y_true - y_predicted, y_true, out=np.zeros_like(y_predicted, dtype=float), where=y_true!=0))) * 100)
+
+    return pd.DataFrame(data={'mse': mse_errors, 'mae': mae_errors, 'mape': mape_errors}, index=[f"{method} Order " + str(i) for i in range(1, order+1, 1)])
+
+
+
+# Time series cross-validation
+def train_test_validation(df, col, n_splits=5, order=5, verbose=False, method = 'spline'):
+    df_holder_train = []
+    df_holder_test = []
+
+    tscv = TimeSeriesSplit(n_splits=n_splits)
+
+    for train_idx, test_idx in tscv.split(df[col]):
+        train_df = df.iloc[train_idx]
+        test_df = df.iloc[test_idx]
+
+        # Now, concatenate train and test to get a full dataframe for this split
+        # combined_df = pd.concat([train_df, test_df])
+
+        # Call the spline_testing function
+        df_holder_train.append(spline_testing(train_df, col, order=order, method= method))
+        df_holder_test.append(spline_testing(test_df, col, order=order, method=method))
+
+    if verbose:
+        # Now, df_holder will have a list of dataframes with residuals for each split
+        for index, df in enumerate(df_holder_train):
+            print(f"Train Split {index + 1} Results:")
+            display(df)
+            print("\n")
+            
+        # Now, df_holder will have a list of dataframes with residuals for each split
+        for index, df in enumerate(df_holder_test):
+            print(f"Test Split {index + 1} Results:")
+            display(df)
+            print("\n")
+    
+    train_error = reduce(lambda x, y: x + y, df_holder_train)/n_splits
+    test_error = reduce(lambda x, y: x + y, df_holder_test)/n_splits
+    return train_error, test_error
+
+####----------------------------------------------------------------------------------------
 
 print("Versions used in this notebook:")
 print(f"Python version: {sys.version}")
