@@ -66,7 +66,7 @@ from sklearn.neighbors import KNeighborsClassifier, KNeighborsRegressor
 # # Advanced Ensemble Models
 
 from sklearn.ensemble import RandomForestClassifier, ExtraTreesClassifier, ExtraTreesRegressor, GradientBoostingClassifier, RandomForestRegressor, GradientBoostingRegressor
-# from sklearn.naive_bayes import GaussianNB
+from sklearn.naive_bayes import GaussianNB
 # # from xgboost import XGBClassifier, XGBRegressor
 from lightgbm import LGBMClassifier, LGBMRegressor
 from catboost import CatBoostClassifier, CatBoostRegressor
@@ -77,7 +77,7 @@ from catboost import CatBoostClassifier, CatBoostRegressor
 # # Clustering Models
 
 from sklearn.cluster import KMeans, AgglomerativeClustering, DBSCAN
-# from sklearn.mixture import GaussianMixture
+from sklearn.mixture import GaussianMixture
 
 
 # # ----------------------------------------------------------------------------------------------------------------------------
@@ -476,8 +476,11 @@ def plot_average_score_of_hyperparameters(grid_outcomes, first_hyperparameter, s
     variable_plot_name= first_hyperparameter.replace('param_', '').replace('__', ' ').title()
     
     # Get the hyperparameter value of the model with the highest test score
-    winner = grid_outcomes.loc[grid_outcomes.mean_test_score.argmax(), first_hyperparameter]
-    
+    try: 
+        winner = grid_outcomes.loc[grid_outcomes.mean_test_score.idxmax(), first_hyperparameter]
+    except: 
+        winner = grid_outcomes.loc[grid_outcomes.mean_test_score.argmax(), first_hyperparameter]
+
     # Create a new figure
     plt.figure(figsize=(10, 6))
 
@@ -554,9 +557,14 @@ def plot_average_time_of_hyperparameters(grid_outcomes, first_hyperparameter, se
     grouped_grid = grid_outcomes.groupby(first_hyperparameter)
     variable_plot_name= first_hyperparameter.replace('param_', '').replace('__', ' ').title()
 
-    # Get the hyperparameter value of the model with the highest test score
-    mean_fit_winner = grid_outcomes.loc[grid_outcomes.mean_fit_time.mean().argmin(), first_hyperparameter]
-    mean_score_winner = grid_outcomes.loc[grid_outcomes.mean_score_time.mean().argmin(), first_hyperparameter]
+    try: 
+        # Get the hyperparameter value of the model with the highest test score
+        mean_fit_winner = grid_outcomes.loc[grid_outcomes.mean_fit_time.mean().idxmin(), first_hyperparameter]
+        mean_score_winner = grid_outcomes.loc[grid_outcomes.mean_score_time.mean().idxmin(), first_hyperparameter]
+    except: 
+        # Get the hyperparameter value of the model with the highest test score
+        mean_fit_winner = grid_outcomes.loc[grid_outcomes.mean_fit_time.mean().argmin(), first_hyperparameter]
+        mean_score_winner = grid_outcomes.loc[grid_outcomes.mean_score_time.mean().argmin(), first_hyperparameter]
 
     # Create a new figure
     plt.figure(figsize=(10, 6))
