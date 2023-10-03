@@ -2,6 +2,10 @@
 
 This repository is a collection of reference notebooks for various projects. The initial drafts of these notebooks were created with the aid of GPT-4, utilizing the June 22nd model with the Wolfram Alpha and Scholar AI plug-ins. They have since been meticulously reviewed and reformatted to ensure accuracy and clarity.
 
+- [Machine Learning Directory](https://github.com/scelarek/Reference_Notebooks/tree/main/Machine%20Learning)
+- [Data Analysis Directory](https://github.com/scelarek/Reference_Notebooks/tree/main/Data%20Analysis)
+- [Project Template Repository](https://github.com/scelarek/Reference_Notebooks/tree/main/Templates%20For%20Projects)
+
 ## Disclaimer
 While these reference sheets offer valuable insights, they might contain inaccuracies due to potential limitations in my expertise on certain topics. It's recommended to cross-reference any information here when learning new concepts or applying them in a professional context.
 
@@ -10,6 +14,7 @@ These notebooks are not just a mere collection; they have been instrumental in m
 
 ## GPT-4 Prompts Used
 For transparency and a better understanding of the content genesis, here are some example prompts I provided to GPT-4 during the creation process:
+
 
 ```
 - Please give me a MarkDown cheatsheet for these classification and regression algorithms in the sklearn library for ML:
